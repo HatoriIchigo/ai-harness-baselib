@@ -1,3 +1,6 @@
+using System.IO.Enumeration;
+using System.Text.Json.Nodes;
+
 namespace ai_harness_baselib;
 
 /// <summary>
@@ -38,12 +41,33 @@ public abstract class PluginBase
     public virtual IReadOnlyList<string>? Events => null;
 
     /// <summary>
-    /// この hook データに対して発火すべきか。<see cref="Tools"/>（tool_name マッチ）と
-    /// <see cref="Events"/>（hook_event_name マッチ）の <b>OR</b>。各配列の <c>"*"</c> は全マッチ。
-    /// null の系統は評価対象外。ai-harness-main が発火前に呼ぶ。
+    /// このプラグインが対象とするファイルパスのパターン配列。未使用なら <c>null</c>（既定）。
+    /// hook の file_path（<c>tool_input.file_path</c> を優先、無ければトップレベル <c>file_path</c>）が
+    /// いずれかのパターンに glob 一致するとき <see cref="Action"/> が発火する。
+    /// パターンは <c>*</c>（任意長）と <c>?</c>（任意1文字）のワイルドカードを解釈（例: <c>"*.cs"</c>, <c>"src/*"</c>）。
+    /// 全ファイル対象は <c>"*"</c>。大文字小文字は無視。
+    /// </summary>
+    public virtual IReadOnlyList<string>? FileNames => null;
+
+    /// <summary>
+    /// このプラグインが対象とする Bash コマンドのパターン配列。未使用なら <c>null</c>（既定）。
+    /// hook の <c>tool_input.command</c> がいずれかのパターンに glob 一致するとき <see cref="Action"/> が発火する。
+    /// パターンは <c>*</c>（任意長）と <c>?</c>（任意1文字）のワイルドカードを解釈（例: <c>"git push*"</c>, <c>"*rm *"</c>）。
+    /// 全コマンド対象は <c>"*"</c>。大文字小文字は区別する。
+    /// </summary>
+    public virtual IReadOnlyList<string>? BashCommands => null;
+
+    /// <summary>
+    /// この hook データに対して発火すべきか。<see cref="Tools"/>（tool_name 完全一致）・
+    /// <see cref="Events"/>（hook_event_name 完全一致）・<see cref="FileNames"/>（file_path glob）・
+    /// <see cref="BashCommands"/>（command glob）の <b>OR</b>。各配列の <c>"*"</c> は全マッチ。
+    /// null の系統は評価対象外。全系統 null のプラグインは発火しない。ai-harness-main が発火前に呼ぶ。
     /// </summary>
     public bool ShouldFire(HookData data) =>
-        MatchesTool(data.ToolName) || MatchesEvent(data.HookEventName);
+        MatchesTool(data.ToolName)
+        || MatchesEvent(data.HookEventName)
+        || MatchesPattern(FileNames, ExtractFilePath(data), ignoreCase: true)
+        || MatchesPattern(BashCommands, ExtractBashCommand(data), ignoreCase: false);
 
     private bool MatchesTool(string? toolName)
     {
@@ -70,6 +94,51 @@ public abstract class PluginBase
         }
         return !string.IsNullOrEmpty(eventName) && Events.Contains(eventName);
     }
+
+    /// <summary>
+    /// パターン配列に対する glob マッチ（<c>*</c>＝任意長 / <c>?</c>＝任意1文字）。
+    /// null 配列は対象外（false）。<c>"*"</c> 単体を含む場合は値の有無に依らず全マッチ
+    /// （<see cref="Tools"/>/<see cref="Events"/> の <c>"*"</c> と整合）。空配列はマッチなし。
+    /// </summary>
+    private static bool MatchesPattern(IReadOnlyList<string>? patterns, string? value, bool ignoreCase)
+    {
+        if (patterns is null)
+        {
+            return false;
+        }
+        if (patterns.Contains("*"))
+        {
+            return true;
+        }
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+        foreach (var pattern in patterns)
+        {
+            if (FileSystemName.MatchesSimpleExpression(pattern, value, ignoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>マッチ対象のファイルパス。tool_input.file_path 優先、無ければトップレベル file_path。</summary>
+    private static string? ExtractFilePath(HookData data) =>
+        AsString(GetMember(data.ToolInput, "file_path")) ?? data.FilePath;
+
+    /// <summary>マッチ対象の Bash コマンド（tool_input.command）。</summary>
+    private static string? ExtractBashCommand(HookData data) =>
+        AsString(GetMember(data.ToolInput, "command"));
+
+    /// <summary>JsonObject のメンバを安全に取得（オブジェクト以外・不在は null）。</summary>
+    private static JsonNode? GetMember(JsonNode? node, string name) =>
+        node is JsonObject obj && obj.TryGetPropertyValue(name, out var v) ? v : null;
+
+    /// <summary>JsonNode が文字列値なら取り出す。型不一致・null は null。</summary>
+    private static string? AsString(JsonNode? node) =>
+        node is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
 
     /// <summary>
     /// ロード直後に 1 度だけ呼ばれる初期化。

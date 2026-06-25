@@ -184,6 +184,28 @@ public sealed class HookData
     /// </summary>
     public string ToNonNullJson() => JsonSerializer.Serialize(this, NonNullSerializerOptions);
 
+    /// <summary>
+    /// <see cref="ToNonNullJson()"/> から指定したトップレベルキーを除外して出力する。
+    /// <paramref name="excludeKeys"/> には JSON キー名（<c>tool_input</c> 等。<see cref="Extra"/> 展開後の
+    /// 未知キー <c>tool_response</c> も対象）を渡す。巨大フィールドをログから外す用途。
+    /// </summary>
+    public string ToNonNullJson(params string[] excludeKeys)
+    {
+        if (excludeKeys is null || excludeKeys.Length == 0)
+        {
+            return ToNonNullJson();
+        }
+        if (JsonSerializer.SerializeToNode(this, NonNullSerializerOptions) is not JsonObject obj)
+        {
+            return ToNonNullJson();
+        }
+        foreach (var key in excludeKeys)
+        {
+            obj.Remove(key);
+        }
+        return obj.ToJsonString(NonNullSerializerOptions);
+    }
+
     /// <summary>stdin から読んだ JSON 文字列を <see cref="HookData"/> へデシリアライズ。</summary>
     public static HookData Parse(string json) =>
         JsonSerializer.Deserialize<HookData>(json, SerializerOptions)
