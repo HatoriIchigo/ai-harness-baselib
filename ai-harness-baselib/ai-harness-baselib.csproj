@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>ai_harness_baselib</RootNamespace>
+    <AssemblyName>ai-harness-baselib</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 設定ファイル（YAML）パース用。LoadConfig 内部でのみ使用し、公開 API には露出しない
+         （Config は標準型 IReadOnlyDictionary で返すため、プラグインは YamlDotNet 非依存）。 -->
+    <PackageReference Include="YamlDotNet" Version="18.0.0" />
+  </ItemGroup>
+
+</Project>
