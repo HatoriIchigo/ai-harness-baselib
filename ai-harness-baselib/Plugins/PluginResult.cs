@@ -16,6 +16,16 @@ public sealed class PluginResult
     /// <summary>deny 時などに判定へ添える理由。main が集約して Claude へ渡す。</summary>
     public string? Reason { get; set; }
 
+    /// <summary>
+    /// Claude のコンテキストへ注入する追加テキスト（非ブロック）。<see cref="ExitCode"/> を 0（許可）に
+    /// 保ったまま添えられる。<see cref="Reason"/>（deny 理由）とは独立した系統。
+    /// main は全プラグインのこの値を連結し、client が Claude Code の hook 出力
+    /// （<c>hookSpecificOutput.additionalContext</c>）へマップする。PreToolUse では
+    /// <c>permissionDecision=allow</c> と併せて出力され、ツール実行をブロックせずに文脈へ反映される。
+    /// 注入テキストが Claude に見えるのはツール実行後（次のモデル呼び出し）である点に注意。
+    /// </summary>
+    public string? AdditionalContext { get; set; }
+
     /// <summary>正常（許可）を表す既定状態か。</summary>
     public bool IsOk => ExitCode == 0;
 }
