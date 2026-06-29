@@ -156,7 +156,8 @@ public abstract class PluginBase
     public abstract IEnumerable<LogEntry> Action(HookData data, PluginResult result);
 
     /// <summary>
-    /// このプラグインの設定ファイル名。<b>必須</b>。設定ディレクトリ（<c>&lt;実行体&gt;/config</c>）からの相対名。
+    /// このプラグインの設定ファイル名。<b>必須</b>。プロジェクトの設定ディレクトリ
+    /// （<c>&lt;プロジェクトルート&gt;/.claude/harness/config</c>）からの相対名。
     /// 未設定（null/空）の場合 <see cref="LoadConfig"/> がエラーを投げ、ai-harness-main は当該プラグインを無効化する。
     /// </summary>
     public virtual string? ConfigName => null;
@@ -173,18 +174,21 @@ public abstract class PluginBase
             $"{PluginName}: 設定が未ロード。LoadConfig の呼び出しが先に必要。");
 
     /// <summary>
-    /// <see cref="ConfigName"/> が指す YAML 設定ファイルを設定ディレクトリからロード・パースし、内部変数に保持する。
+    /// <see cref="ConfigName"/> が指す YAML 設定ファイルを、<paramref name="configDir"/>（プロジェクト個別の
+    /// 設定ディレクトリ <c>&lt;プロジェクトルート&gt;/.claude/harness/config</c>）からロード・パースし、内部変数に保持する。
     /// ConfigName が未設定（null/空）の場合はエラー（必須）。ファイル不在も例外。空ファイルは空マッピング。
     /// ai-harness-main がプラグインのインスタンス生成直後（Init / Action の前）に呼ぶ。
+    /// 単一 daemon が複数プロジェクトをさばくため、設定の所在は実行体ではなくプロジェクトごとに異なる。
     /// </summary>
-    public void LoadConfig()
+    /// <param name="configDir">プロジェクトの設定ディレクトリ（絶対パス）。</param>
+    public void LoadConfig(string configDir)
     {
         if (string.IsNullOrWhiteSpace(ConfigName))
         {
             throw new InvalidOperationException(
                 $"{PluginName}: ConfigName が未設定。設定ファイル名の宣言は必須。");
         }
-        var path = Path.Combine(AppContext.BaseDirectory, "config", ConfigName);
+        var path = Path.Combine(configDir, ConfigName);
         var text = ReadConfigFile(path);
         var deserializer = new YamlDotNet.Serialization.DeserializerBuilder().Build();
         // 空ファイル/コメントのみは null デシリアライズ → 空マッピングへフォールバック。
