@@ -10,6 +10,7 @@ namespace ai_harness_baselib;
 /// </summary>
 public sealed class Effort
 {
+    /// <summary>effort レベル名（<c>"low"</c> / <c>"medium"</c> / <c>"high"</c> 等）。</summary>
     [JsonPropertyName("level")]
     public string? Level { get; init; }
 }
@@ -26,18 +27,23 @@ public sealed class HookData
 {
     // ---- 共通フィールド（全イベント） ----
 
+    /// <summary>セッション識別子。</summary>
     [JsonPropertyName("session_id")]
     public string? SessionId { get; init; }
 
+    /// <summary>会話トランスクリプト（JSONL）の絶対パス。</summary>
     [JsonPropertyName("transcript_path")]
     public string? TranscriptPath { get; init; }
 
+    /// <summary>hook 実行時のカレントディレクトリ。</summary>
     [JsonPropertyName("cwd")]
     public string? Cwd { get; init; }
 
+    /// <summary>現在の権限モード（<c>"default"</c> / <c>"plan"</c> / <c>"acceptEdits"</c> 等）。</summary>
     [JsonPropertyName("permission_mode")]
     public string? PermissionMode { get; init; }
 
+    /// <summary>effort 設定（レベルを内包）。</summary>
     [JsonPropertyName("effort")]
     public Effort? Effort { get; init; }
 
@@ -45,14 +51,17 @@ public sealed class HookData
     [JsonPropertyName("hook_event_name")]
     public string? HookEventName { get; init; }
 
+    /// <summary>発火元エージェントの ID（サブエージェント発火時）。</summary>
     [JsonPropertyName("agent_id")]
     public string? AgentId { get; init; }
 
+    /// <summary>発火元エージェントの種別。</summary>
     [JsonPropertyName("agent_type")]
     public string? AgentType { get; init; }
 
     // ---- ツール系（PreToolUse / PostToolUse / *Failure / PermissionRequest / PermissionDenied） ----
 
+    /// <summary>対象ツール名（PreToolUse / PostToolUse 等）。</summary>
     [JsonPropertyName("tool_name")]
     public string? ToolName { get; init; }
 
@@ -60,93 +69,117 @@ public sealed class HookData
     [JsonPropertyName("tool_input")]
     public JsonNode? ToolInput { get; init; }
 
+    /// <summary>ツールの出力（PostToolUse 等）。文字列化された結果。</summary>
     [JsonPropertyName("tool_output")]
     public string? ToolOutput { get; init; }
 
+    /// <summary>権限イベントの種別（PermissionRequest / PermissionDenied 等）。</summary>
     [JsonPropertyName("permission_type")]
     public string? PermissionType { get; init; }
 
     // ---- プロンプト系 ----
 
+    /// <summary>ユーザーが送信したプロンプト（UserPromptSubmit）。</summary>
     [JsonPropertyName("prompt")]
     public string? Prompt { get; init; }
 
+    /// <summary>スラッシュコマンド名（該当時）。</summary>
     [JsonPropertyName("command_name")]
     public string? CommandName { get; init; }
 
+    /// <summary>展開後のプロンプト（UserPromptExpansion）。</summary>
     [JsonPropertyName("expanded_prompt")]
     public string? ExpandedPrompt { get; init; }
 
     // ---- セッション / コンパクション / 設定の source・trigger 系 ----
 
+    /// <summary>イベントの発生源（SessionStart の <c>"startup"</c> / <c>"resume"</c> 等）。</summary>
     [JsonPropertyName("source")]
     public string? Source { get; init; }
 
+    /// <summary>トリガ種別（PreCompact の <c>"manual"</c> / <c>"auto"</c> 等）。</summary>
     [JsonPropertyName("trigger")]
     public string? Trigger { get; init; }
 
+    /// <summary>読み込み理由（InstructionsLoaded 等）。</summary>
     [JsonPropertyName("load_reason")]
     public string? LoadReason { get; init; }
 
     // ---- Stop / StopFailure ----
 
+    /// <summary>Stop hook が既に稼働中か（無限ループ防止のフラグ）。</summary>
     [JsonPropertyName("stop_hook_active")]
     public bool? StopHookActive { get; init; }
 
+    /// <summary>失敗イベントのエラー種別（StopFailure 等）。</summary>
     [JsonPropertyName("error_type")]
     public string? ErrorType { get; init; }
 
     // ---- Notification ----
 
+    /// <summary>通知種別（Notification）。</summary>
     [JsonPropertyName("notification_type")]
     public string? NotificationType { get; init; }
 
     // ---- Subagent ----
 
+    /// <summary>停止理由（SubagentStop 等）。</summary>
     [JsonPropertyName("stop_reason")]
     public string? StopReason { get; init; }
 
     // ---- Cwd / File 変更 ----
 
+    /// <summary>変更前のカレントディレクトリ（CwdChanged）。</summary>
     [JsonPropertyName("old_cwd")]
     public string? OldCwd { get; init; }
 
+    /// <summary>変更後のカレントディレクトリ（CwdChanged）。</summary>
     [JsonPropertyName("new_cwd")]
     public string? NewCwd { get; init; }
 
+    /// <summary>対象ファイルパス（FileChanged 等・トップレベル）。</summary>
     [JsonPropertyName("file_path")]
     public string? FilePath { get; init; }
 
+    /// <summary>ファイル変更の種別（<c>"created"</c> / <c>"modified"</c> / <c>"deleted"</c> 等）。</summary>
     [JsonPropertyName("change_type")]
     public string? ChangeType { get; init; }
 
     // ---- MCP elicitation ----
 
+    /// <summary>対象 MCP サーバ名（Elicitation）。</summary>
     [JsonPropertyName("mcp_server")]
     public string? McpServer { get; init; }
 
+    /// <summary>elicitation の生データ（構造はサーバ依存のため JSON ノードで保持）。</summary>
     [JsonPropertyName("elicitation_data")]
     public JsonNode? ElicitationData { get; init; }
 
     // ---- Worktree ----
 
+    /// <summary>worktree のベースブランチ（WorktreeCreate）。</summary>
     [JsonPropertyName("base_branch")]
     public string? BaseBranch { get; init; }
 
+    /// <summary>worktree のパス（WorktreeCreate / WorktreeRemove）。</summary>
     [JsonPropertyName("worktree_path")]
     public string? WorktreePath { get; init; }
 
     // ---- MessageDisplay / Task / Teammate ----
 
+    /// <summary>表示メッセージの種別（MessageDisplay）。</summary>
     [JsonPropertyName("message_type")]
     public string? MessageType { get; init; }
 
+    /// <summary>表示メッセージの本文（MessageDisplay）。</summary>
     [JsonPropertyName("message_text")]
     public string? MessageText { get; init; }
 
+    /// <summary>タスクの説明（TaskCreated / TaskCompleted 等）。</summary>
     [JsonPropertyName("task_description")]
     public string? TaskDescription { get; init; }
 
+    /// <summary>対象 teammate の ID（TeammateIdle）。</summary>
     [JsonPropertyName("teammate_id")]
     public string? TeammateId { get; init; }
 
@@ -156,6 +189,19 @@ public sealed class HookData
     /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
+
+    // ---- ハーネス内部 state（hook JSON 外・main が注入） ----
+
+    /// <summary>
+    /// ai-harness-main が保持する永続 state（<c>&lt;projectRoot&gt;/.claude/harness/state.json</c>）の全体。
+    /// hook の stdin JSON には含まれず、main が発火直前に注入する（<see cref="JsonIgnoreAttribute"/> で入出力から除外）。
+    /// プラグインは規約として自分の <see cref="PluginBase.PluginName"/> をトップレベルキーとする配下を参照する
+    /// （全体を読めるので他プラグインの state も参照可）。
+    /// <b>共有参照のため書き換えないこと</b>（並列発火で競合する）。state の変更は
+    /// <see cref="PluginResult.State"/> に自分の新しいスライスを返して行う。
+    /// </summary>
+    [JsonIgnore]
+    public JsonNode? State { get; set; }
 
     /// <summary>
     /// <see cref="HookEventName"/> を列挙型へ解釈。未知・未設定なら <c>null</c>。

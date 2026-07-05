@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 namespace ai_harness_baselib;
 
 /// <summary>
@@ -25,6 +27,15 @@ public sealed class PluginResult
     /// 注入テキストが Claude に見えるのはツール実行後（次のモデル呼び出し）である点に注意。
     /// </summary>
     public string? AdditionalContext { get; set; }
+
+    /// <summary>
+    /// このプラグインが返す新しい state スライス。<c>null</c>（既定）＝変更なし。
+    /// main はこの値を <c>state.json</c> のトップレベル <see cref="PluginBase.PluginName"/> キー配下へ
+    /// 上書きし、state 全体に差分があれば書き戻す。
+    /// 規約として各プラグインは<b>自分の名前空間のみ</b>を返す（返した値がそのキー配下を丸ごと置換する）。
+    /// <see cref="HookData.State"/>（共有参照）を直接書き換えず、新しいノードを生成して返すこと。
+    /// </summary>
+    public JsonNode? State { get; set; }
 
     /// <summary>正常（許可）を表す既定状態か。</summary>
     public bool IsOk => ExitCode == 0;

@@ -7,16 +7,19 @@ namespace ai_harness_baselib.Examples;
 /// </summary>
 public sealed class BlockDangerousBashPlugin : PluginBase
 {
+    /// <inheritdoc/>
     public override string PluginName => "BlockDangerousBash";
 
     /// <summary>Bash のみ対象。tool_name=Bash の PreToolUse だけ発火する。</summary>
     public override IReadOnlyList<string> Tools => new[] { "Bash" };
 
+    /// <inheritdoc/>
     public override IEnumerable<LogEntry> Init()
     {
         yield return LogEntry.Info("BlockDangerousBashPlugin 初期化");
     }
 
+    /// <inheritdoc/>
     public override IEnumerable<LogEntry> Action(HookData data, PluginResult result)
     {
         // 自己フィルタ: 対象外イベント／ツールなら何もせず正常終了。
