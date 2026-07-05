@@ -122,6 +122,7 @@ public sealed class BlockDangerousBashPlugin : PluginBase
 - **それ以外で native が要るプラグインは、native を自分の管理 DLL に埋め込む（embedded resource）。** host が起動時に `runtimes/<rid>/native/` へ**自動展開**（冪等・グローバル単一・起動時 1 回）してからフルパスで事前ロードするため、以降のロードは `DllImport`／ベア名いずれも解決できる。
 - 使用者の操作は変わらない: **管理 DLL を `lib/` に置くだけ**。native ファイルを別配布・別配置しない。`runtimes/` は使用者が触らず、プログラム（host）が書き換える。完全オフライン（ネットワーク・外部インストーラ不要）。
 - **native を `lib/` にバラ置きする方式・PATH や探索パスを書き換える方式は採らない。**
+- プラグインが参照する**管理依存**（例: `TreeSitter.dll`）は `lib/` に同居させる。**`.deps.json` は不要**——ALC（`PluginLoadContext`）が `lib/` 直下を直接プローブして解決するため、配布物は管理 DLL のみでよい。
 - host 側の自動展開フックは最初の非 tree-sitter native プラグイン登場時に実装する。配置・バージョン整合の詳細は [`ai-harness-main/docs/build-and-deploy.md`](../ai-harness-main/docs/build-and-deploy.md) の「native 配布ポリシー」を参照。
 
 ## HookData
