@@ -114,6 +114,16 @@ public sealed class BlockDangerousBashPlugin : PluginBase
 }
 ```
 
+## ネイティブ依存プラグイン（native の扱い）
+
+プラグインは原則**マネージド（.NET）のみ**。ネイティブライブラリ（tree-sitter 相当の `import`/ベア名で読む DLL）が要る場合の配布方針は次で固定する。
+
+- **既定リリースに native を同梱してよいのは tree-sitter のみ**（`ai-harness-constants`／`ai-harness-file-rules` が使う grammar）。これは host（`ai-harness-main`）のリリースに `runtimes/<rid>/native/` として封入される汎用 first-party の特例。
+- **それ以外で native が要るプラグインは、native を自分の管理 DLL に埋め込む（embedded resource）。** host が起動時に `runtimes/<rid>/native/` へ**自動展開**（冪等・グローバル単一・起動時 1 回）してからフルパスで事前ロードするため、以降のロードは `DllImport`／ベア名いずれも解決できる。
+- 使用者の操作は変わらない: **管理 DLL を `lib/` に置くだけ**。native ファイルを別配布・別配置しない。`runtimes/` は使用者が触らず、プログラム（host）が書き換える。完全オフライン（ネットワーク・外部インストーラ不要）。
+- **native を `lib/` にバラ置きする方式・PATH や探索パスを書き換える方式は採らない。**
+- host 側の自動展開フックは最初の非 tree-sitter native プラグイン登場時に実装する。配置・バージョン整合の詳細は [`ai-harness-main/docs/build-and-deploy.md`](../ai-harness-main/docs/build-and-deploy.md) の「native 配布ポリシー」を参照。
+
 ## HookData
 
 Claude Code が hook の stdin に渡す JSON を 1 型へ統合。当該イベントに存在しないフィールドは `null`。プラグインは `Event` や `ToolName` で必要なフィールドのみ参照する。未知フィールドは `[JsonExtensionData]` で前方互換に受ける。
