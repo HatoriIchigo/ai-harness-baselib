@@ -23,6 +23,12 @@ public abstract class PluginBase
     public abstract string PluginName { get; }
 
     /// <summary>
+    /// プラグインが何を強制するかの 1 行説明。人間向けの一覧表示（<c>ai-harness-main --plugin</c>）に使う。
+    /// 既定は空文字＝説明なし。ハーネスの動作には影響しない。
+    /// </summary>
+    public virtual string Description => "";
+
+    /// <summary>
     /// このプラグインが対象とするツール名の配列。未使用なら <c>null</c>（既定）。
     /// hook の <c>tool_name</c> がこの配列に含まれるイベントで <see cref="Action"/> が発火する。
     /// 全ツールを対象にするには <c>"*"</c>（<see cref="ToolCatalog.Wildcard"/>）。
