@@ -162,6 +162,30 @@ public abstract class PluginBase
     public abstract IEnumerable<LogEntry> Action(HookData data, PluginResult result);
 
     /// <summary>
+    /// 能動スキャン本体。hook イベントには紐づかず、CLI（<c>ai-harness-main --fire</c>）から
+    /// <b>手動で</b>起動される点が <see cref="Action"/> と異なる。<paramref name="projectRoot"/> 配下を
+    /// 能動的に点検し、ログを <c>yield</c> で逐次返す。列挙が完了した時点で <paramref name="result"/> に
+    /// 結果が確定する（<see cref="Action"/> と同じ規約。最後の yield の後に <c>result.ExitCode = ...</c> を書く）。
+    ///
+    /// <see cref="Action"/> のような <see cref="ShouldFire"/> フィルタは通らず、有効化されている（common.yml の
+    /// tools で on の）プラグインが一律に呼ばれる。<see cref="LoadConfig"/> 済みで呼ばれるため
+    /// <see cref="Config"/> を参照できる。hook のゲートではないため、ここでの非 0 <see cref="PluginResult.ExitCode"/>
+    /// は何かをブロックするのではなく、スキャンの検出結果としてレポートに表示されるだけ。
+    ///
+    /// <paramref name="projectRoot"/> はスキャン対象のプロジェクトルート（絶対パス）。daemon は常駐ゆえ
+    /// 各 hook/CLI プロセスの cwd を持たないため、走査対象は引数で受け取る（<see cref="Config"/> の所在と同様に
+    /// プロジェクトごとに異なる）。
+    ///
+    /// 既定は何もしない（no-op）。スキャンを実装したいプラグインのみ override する。
+    /// </summary>
+    /// <param name="projectRoot">スキャン対象のプロジェクトルート（絶対パス）。</param>
+    /// <param name="result">列挙完了時に書き込む結果ホルダ。main が読み、レポートへ整形する。</param>
+    public virtual IEnumerable<LogEntry> Fire(string projectRoot, PluginResult result)
+    {
+        yield break;
+    }
+
+    /// <summary>
     /// このプラグインの設定ファイル名。<b>必須</b>。プロジェクトの設定ディレクトリ
     /// （<c>&lt;プロジェクトルート&gt;/.claude/harness/config</c>）からの相対名。
     /// 未設定（null/空）の場合 <see cref="LoadConfig"/> がエラーを投げ、ai-harness-main は当該プラグインを無効化する。
