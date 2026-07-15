@@ -29,6 +29,13 @@ public abstract class PluginBase
     public virtual string Description => "";
 
     /// <summary>
+    /// このプラグインが各プロジェクトの <c>.claude/rules</c> へ配布する rule を持つか。既定 <c>false</c>＝配布しない。
+    /// <c>true</c> にしたプラグインは、末尾が <c>.rule.md</c> の埋め込みリソースを 1 つ同梱すること
+    /// （<see cref="CopyRule"/> がそれを配置する）。Claude Code 側への案内文の配布であり、ハーネスの発火判定には影響しない。
+    /// </summary>
+    public virtual bool ProvidesRule => false;
+
+    /// <summary>
     /// このプラグインが対象とするツール名の配列。未使用なら <c>null</c>（既定）。
     /// hook の <c>tool_name</c> がこの配列に含まれるイベントで <see cref="Action"/> が発火する。
     /// 全ツールを対象にするには <c>"*"</c>（<see cref="ToolCatalog.Wildcard"/>）。
@@ -228,4 +235,37 @@ public abstract class PluginBase
 
     /// <summary>プラグインが自身の設定ファイルを読む共通ヘルパ。</summary>
     public string ReadConfigFile(string configPath) => File.ReadAllText(configPath);
+
+    /// <summary>
+    /// <see cref="ProvidesRule"/> が <c>true</c> のとき、このプラグインが同梱する埋め込み rule
+    /// （末尾 <c>.rule.md</c> のリソース）を <paramref name="rulesDir"/>/<c>&lt;PluginName&gt;.md</c> へ
+    /// 上書きコピーする。<c>false</c> のときは何もしない。
+    ///
+    /// 宛先ディレクトリは host が渡す（baselib はプロジェクトルートを知らない＝<see cref="LoadConfig"/> と同じ流儀）。
+    /// hook のゲートではなく Claude Code への案内文の配布なので、host は Create 時のみ呼び、失敗しても block しない。
+    /// </summary>
+    /// <param name="rulesDir">配置先ディレクトリ（<c>&lt;プロジェクトルート&gt;/.claude/rules</c> の絶対パス）。</param>
+    /// <returns>書き込んだファイルの絶対パス。<see cref="ProvidesRule"/> が <c>false</c> のときは <c>null</c>。</returns>
+    public string? CopyRule(string rulesDir)
+    {
+        if (!ProvidesRule)
+        {
+            return null;
+        }
+
+        var asm = GetType().Assembly;
+        var resource = Array.Find(
+            asm.GetManifestResourceNames(),
+            n => n.EndsWith(".rule.md", StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException(
+                $"{PluginName}: ProvidesRule=true だが埋め込みリソース *.rule.md が見つからない。");
+
+        using var reader = new StreamReader(asm.GetManifestResourceStream(resource)!);
+        var content = reader.ReadToEnd();
+
+        Directory.CreateDirectory(rulesDir);
+        var path = Path.Combine(rulesDir, $"{PluginName}.md");
+        File.WriteAllText(path, content);
+        return path;
+    }
 }
