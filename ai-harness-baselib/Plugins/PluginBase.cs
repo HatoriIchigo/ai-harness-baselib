@@ -268,4 +268,44 @@ public abstract class PluginBase
         File.WriteAllText(path, content);
         return path;
     }
+
+    /// <summary>
+    /// このプラグインが同梱するデフォルト設定（末尾 <c>.config.yml</c> の埋め込みリソース）を、
+    /// <paramref name="configDir"/>/<see cref="ConfigName"/> が<b>存在しないときだけ</b>書き出す。
+    /// 既存のユーザー設定は絶対に上書きしない。<see cref="ConfigName"/> 未設定・埋め込み無し・既存ありは何もしない。
+    ///
+    /// <c>--enable</c> 時に host が呼び、有効化直後のフェイルクローズ（設定 YAML 不在で <see cref="LoadConfig"/> が
+    /// 失敗する）を避けるための雛形配置。中身は「有効化しても即 deny せず・フェイルクローズもしない安全既定」を
+    /// 各プラグインが用意する。宛先ディレクトリは host が渡す（<see cref="LoadConfig"/> と同じ流儀）。
+    /// </summary>
+    /// <param name="configDir">プロジェクトの設定ディレクトリ（絶対パス）。</param>
+    /// <returns>書き出したファイルの絶対パス。既存・埋め込み無し・ConfigName 未設定なら <c>null</c>。</returns>
+    public string? CopyDefaultConfig(string configDir)
+    {
+        if (string.IsNullOrWhiteSpace(ConfigName))
+        {
+            return null;
+        }
+        var path = Path.Combine(configDir, ConfigName);
+        if (File.Exists(path))
+        {
+            return null; // 既存のユーザー設定を尊重（上書きしない）。
+        }
+
+        var asm = GetType().Assembly;
+        var resource = Array.Find(
+            asm.GetManifestResourceNames(),
+            n => n.EndsWith(".config.yml", StringComparison.OrdinalIgnoreCase));
+        if (resource is null)
+        {
+            return null; // デフォルト設定を同梱していない。
+        }
+
+        using var reader = new StreamReader(asm.GetManifestResourceStream(resource)!);
+        var content = reader.ReadToEnd();
+
+        Directory.CreateDirectory(configDir);
+        File.WriteAllText(path, content);
+        return path;
+    }
 }
