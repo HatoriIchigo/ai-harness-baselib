@@ -193,6 +193,15 @@ public abstract class PluginBase
     }
 
     /// <summary>
+    /// <see cref="Fire"/> 専用の LSP 診断リクエスタ。host が <see cref="Fire"/> 呼び出し直前に設定する
+    /// （<see cref="Action"/> の実行時は設定されない＝常に <c>null</c>。<see cref="Action"/> は
+    /// <see cref="HookData.LspDiagnostics"/> のキャッシュ読み取りのみを使う）。
+    /// LSP 連携機能自体が無い・未起動などで使えない状況では <c>null</c> のままのことがある
+    /// （<see cref="Fire"/> 実装側で null チェックすること）。
+    /// </summary>
+    public IFireLspRequester? FireLsp { get; set; }
+
+    /// <summary>
     /// このプラグインの設定ファイル名。<b>必須</b>。プロジェクトの設定ディレクトリ
     /// （<c>&lt;プロジェクトルート&gt;/.claude/harness/config</c>）からの相対名。
     /// 未設定（null/空）の場合 <see cref="LoadConfig"/> がエラーを投げ、ai-harness-main は当該プラグインを無効化する。

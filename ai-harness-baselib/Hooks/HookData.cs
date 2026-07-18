@@ -204,6 +204,26 @@ public sealed class HookData
     public JsonNode? State { get; set; }
 
     /// <summary>
+    /// LSP サーバの状態スナップショット（言語名 → <see cref="LspLanguageState"/>）。
+    /// hook の stdin JSON には含まれず、main が発火直前に注入する（<see cref="JsonIgnoreAttribute"/> で入出力から除外）。
+    /// キーは <c>common.yml</c> の <c>lsp:</c> に列挙され、かつ既に一度でもインストール・起動が試みられた言語のみ
+    /// （未対応言語や、まだ一度もトリガーされていない言語はキーごと存在しない）。
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyDictionary<string, LspLanguageState>? Lsp { get; set; }
+
+    /// <summary>
+    /// LSP の診断キャッシュ（絶対ファイルパス → 診断一覧）。hook の stdin JSON には含まれず、
+    /// main が発火直前に注入する（<see cref="JsonIgnoreAttribute"/> で入出力から除外）。
+    /// main がファイル変更のたびに裏で LSP へ通知し、サーバから非同期に届く
+    /// <c>textDocument/publishDiagnostics</c> をキャッシュしたもののスナップショット。
+    /// <b>編集直後の hook では、まだサーバの解析が終わっておらず古い（または無い）診断しか無いことがある</b>
+    /// （サーバ側の完了を待ってブロックすることはしない）。診断が無いファイルはキーごと存在しない。
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyDictionary<string, IReadOnlyList<LspDiagnostic>>? LspDiagnostics { get; set; }
+
+    /// <summary>
     /// <see cref="HookEventName"/> を列挙型へ解釈。未知・未設定なら <c>null</c>。
     /// </summary>
     [JsonIgnore]
