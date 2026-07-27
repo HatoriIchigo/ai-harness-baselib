@@ -24,6 +24,7 @@ ai-harness-main  ──┐
 | `PluginResult` | プラグイン1実行の結果ホルダ（`ExitCode` / `Reason`） |
 | `LogEntry` / `LogLevel` | ログ専用型（レベル・メッセージ・source） |
 | `HookEvent` | hook イベント種別の列挙 |
+| `PathDeclaration` | プラグインが要求するファイル配置（宣言元の名前つき） |
 
 ## プラグイン契約（`PluginBase`）
 
@@ -58,6 +59,27 @@ public abstract class PluginBase
 発火後はさらに `Action` 内で `HookData` を見て**自己フィルタ**でき、対象外なら `yield break`（`ExitCode` は 0 のまま＝許可）。
 
 `Init` / `Action` は常駐しないプロセスのため、**hook 発火のたびに実行**される（「セッションで1回」ではない）。重い初期化は毎回コストになる点に注意。
+
+### プラグイン間の整合検証
+
+プラグインは互いを知らないが、設定同士が両立しないことがある。例えば `ai-harness-constants` は「定数ファイルはここに置く」という配置（`allow`）を要求するのに対し、`ai-harness-directory-checker` はその配置を許可していない、という状態。放置すると、そこにファイルを作った瞬間に必ず deny される。
+
+これを**起動時に露見させる**ための一方向チャネルを持つ。
+
+| メンバ | 役割 |
+|---|---|
+| `IReadOnlyList<string> RequiredPaths` | 自分が要求するファイル配置の glob。既定は空。**自分の `Config` からのみ**導出する（他プラグインの宣言を参照すると循環する） |
+| `IEnumerable<string> ValidatePeers(IReadOnlyList<PathDeclaration>)` | 全プラグインの要求と自分の設定の矛盾を検証。返した文字列は起動エラーになる。既定は no-op |
+
+`ai-harness-main` は起動検証を 2 パスで行う。パス 1 で各プラグインの `LoadConfig` / `Init` を済ませ、パス 2 で `RequiredPaths` を集めて（宣言元の `PluginName` を打刻して `PathDeclaration` にして）全プラグインの `ValidatePeers` へ渡す。宣言が出揃うのは全プラグインの設定ロード後のため、`Init` の中では検証できない。
+
+**要求は他プラグインの許可を広げない。** 検証材料にしか使わない。要求を根拠に検査を緩めると、プラグインを 1 つ有効化しただけで別のガードが黙って緩むため、加算方向には一切効かせない。
+
+`ValidatePeers` が返した文字列は起動エラーとして積まれ、そのプロジェクトの hook は**フェイルクローズで全てブロック**される（設定を直せばホットリロードで解除）。警告に留めたい内容を返してはならない。
+
+要求元プラグインが無効・未導入なら宣言は 0 件となり、検証対象が無い＝エラー無しで各プラグインは自分の設定のみで動作する（欠如側へ静かに縮退する）。逆に検証側が無効なら要求は誰にも読まれず無害。
+
+雛形（`CopyDefaultConfig` が置くプレースホルダ）のままの設定値は `RequiredPaths` に含めないこと。設定が済んでいないだけの状態で、他プラグインの起動エラーを誘発するため。
 
 ### ログの返し方
 

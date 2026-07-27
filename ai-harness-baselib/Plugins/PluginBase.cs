@@ -204,6 +204,41 @@ public abstract class PluginBase
     }
 
     /// <summary>
+    /// このプラグインが「このプロジェクトに存在する必要がある」と要求するファイル配置の glob 配列。
+    /// 既定は空＝何も要求しない。自分の <see cref="Config"/> からのみ導出すること
+    /// （他プラグインの宣言を参照して導出すると相互依存で循環する）。
+    ///
+    /// host は起動検証時に、有効化された全プラグインのこの値を集めて
+    /// <see cref="ValidatePeers"/> へ渡す。宣言は<b>他プラグインの許可を広げない</b>
+    /// （詳細は <see cref="PathDeclaration"/>）。要求が他のガードと両立しないことを
+    /// 起動時に露見させるためだけに使う。
+    ///
+    /// 未設定を意味する雛形値（<see cref="CopyDefaultConfig"/> が置くプレースホルダ等）は
+    /// 宣言しないこと。設定が済んでいないだけの状態で、他プラグインの起動エラーを誘発するため。
+    /// </summary>
+    public virtual IReadOnlyList<string> RequiredPaths => [];
+
+    /// <summary>
+    /// 他プラグインの <see cref="RequiredPaths"/> 宣言と自分の設定の矛盾を検証する。
+    /// host は起動検証で全プラグインの <see cref="LoadConfig"/> が済んだ後に 1 度呼ぶ
+    /// （<see cref="Init"/> の時点では宣言が出揃っていないため、そこでは検証できない）。
+    ///
+    /// 返した文字列は起動エラーとして積まれ、そのプロジェクトの hook は
+    /// <b>フェイルクローズで全てブロックされる</b>（設定を直せばホットリロードで解除）。
+    /// 「両立しない 2 つのガードを有効化したまま作業を続けさせない」ための強度であり、
+    /// 警告に留めたい内容を返してはならない。
+    ///
+    /// <paramref name="declarations"/> には自分自身の宣言も含まれる。要求元を区別する必要があれば
+    /// <see cref="PathDeclaration.Source"/> を見ること。宣言が 0 件（要求元プラグインが無効・未導入）なら
+    /// 検証対象が無い＝エラー無しで返し、自分の設定のみで動作する。
+    ///
+    /// 既定は何も検証しない（no-op）。配置を検査するプラグインのみ override する。
+    /// </summary>
+    /// <param name="declarations">有効化された全プラグインの配置要求（宣言元の名前つき）。</param>
+    /// <returns>矛盾の説明（利用者向け・修正方法を含めること）。矛盾が無ければ空。</returns>
+    public virtual IEnumerable<string> ValidatePeers(IReadOnlyList<PathDeclaration> declarations) => [];
+
+    /// <summary>
     /// <see cref="Fire"/> 専用の LSP 診断リクエスタ。host が <see cref="Fire"/> 呼び出し直前に設定する
     /// （<see cref="Action"/> の実行時は設定されない＝常に <c>null</c>。<see cref="Action"/> は
     /// <see cref="HookData.LspDiagnostics"/> のキャッシュ読み取りのみを使う）。
