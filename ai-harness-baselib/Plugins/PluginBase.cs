@@ -29,6 +29,17 @@ public abstract class PluginBase
     public virtual string Description => "";
 
     /// <summary>
+    /// このプラグイン DLL の版。人間向けの一覧表示（<c>ai-harness-main --plugin</c>）に使う。
+    /// ハーネスの動作には影響せず、更新判定にも使わない（表示専用）。
+    ///
+    /// override 不可＝版は各プラグインの csproj（<c>InformationalVersion</c>）にのみ書く。コード側にも版を
+    /// 置くと DLL の実体と食い違ったまま気付けないため、実体から読む一方向に固定する。
+    /// <see cref="object.GetType"/> は派生プラグインの型を返すため、参照先はプラグイン自身の DLL
+    /// （baselib ではない）。csproj に版を書いていないプラグインは SDK 既定の <c>1.0.0</c> になる。
+    /// </summary>
+    public string Version => AssemblyVersionReader.Read(GetType().Assembly);
+
+    /// <summary>
     /// このプラグインが各プロジェクトの <c>.claude/rules</c> へ配布する rule を持つか。既定 <c>false</c>＝配布しない。
     /// <c>true</c> にしたプラグインは、末尾が <c>.rule.md</c> の埋め込みリソースを 1 つ同梱すること
     /// （<see cref="CopyRule"/> がそれを配置する）。Claude Code 側への案内文の配布であり、ハーネスの発火判定には影響しない。
