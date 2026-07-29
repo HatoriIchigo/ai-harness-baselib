@@ -41,8 +41,11 @@ public abstract class PluginBase
 
     /// <summary>
     /// このプラグインが各プロジェクトの <c>.claude/rules</c> へ配布する rule を持つか。既定 <c>false</c>＝配布しない。
-    /// <c>true</c> にしたプラグインは、末尾が <c>.rule.md</c> の埋め込みリソースを 1 つ同梱すること
-    /// （<see cref="CopyRule"/> がそれを配置する）。Claude Code 側への案内文の配布であり、ハーネスの発火判定には影響しない。
+    /// <c>true</c> にしたプラグインは、末尾が <c>.rule.md</c> の埋め込みリソースを 1 つ以上同梱する
+    /// （<see cref="CopyRule"/> がそれを配置する。ちょうど 1 件なら <c>&lt;PluginName&gt;.md</c>、
+    /// 2 件以上ならファイル名ごとに分けて配置する）。用途が異なる rule（例: 自身の設定ファイル向けと
+    /// 検証対象ファイル向け）を 1 つにまとめず複数へ分けてよい。Claude Code 側への案内文の配布であり、
+    /// ハーネスの発火判定には影響しない。
     /// </summary>
     public virtual bool ProvidesRule => false;
 
@@ -50,9 +53,9 @@ public abstract class PluginBase
     /// このプラグインが各プロジェクトの <c>.claude/skills</c> へ配布する skill を持つか。既定 <c>false</c>＝配布しない。
     /// <c>true</c> にしたプラグインは、埋め込みリソースの論理名を <c>skills/&lt;スキル名&gt;/...</c>
     /// （csproj 側で <c>LogicalName</c> を明示し、実スラッシュ区切りで固定すること）で 1 つ以上同梱する
-    /// （<see cref="CopySkill"/> がそれを配置する）。<see cref="ProvidesRule"/> と異なり単一ファイルに限らない
-    /// （<c>SKILL.md</c> と補助ファイル一式を想定）。Claude が能動的に読む案内文の配布であり、
-    /// ハーネスの発火判定には影響しない。
+    /// （<see cref="CopySkill"/> がそれを配置する。<c>SKILL.md</c> と補助ファイル一式を想定するため
+    /// 相対パスをそのまま複製する点が <see cref="CopyRule"/> と異なる）。Claude が能動的に読む案内文の
+    /// 配布であり、ハーネスの発火判定には影響しない。
     /// </summary>
     public virtual bool ProvidesSkill => false;
 
@@ -303,35 +306,66 @@ public abstract class PluginBase
 
     /// <summary>
     /// <see cref="ProvidesRule"/> が <c>true</c> のとき、このプラグインが同梱する埋め込み rule
-    /// （末尾 <c>.rule.md</c> のリソース）を <paramref name="rulesDir"/>/<c>&lt;PluginName&gt;.md</c> へ
-    /// 上書きコピーする。<c>false</c> のときは何もしない。
+    /// （末尾 <c>.rule.md</c> のリソース）を <paramref name="rulesDir"/> 配下へ上書きコピーする。
+    /// <c>false</c> のときは何もしない。
+    ///
+    /// 1 プラグインが複数の rule（例: 自身の設定ファイル向けと、検証対象ファイル向けで内容を分ける）を
+    /// 同梱してもよい。ちょうど 1 件のときは既存互換の <c>&lt;PluginName&gt;.md</c> 単一ファイルへ配置する
+    /// （名前が変わらないため、既存プラグインは無変更で動く）。2 件以上のときは配置先が一意になるよう、
+    /// 各リソースの論理名の末尾（<c>.rule.md</c> を除いたファイル名部分）を <c>&lt;PluginName&gt;-&lt;末尾&gt;.md</c>
+    /// として使う。
     ///
     /// 宛先ディレクトリは host が渡す（baselib はプロジェクトルートを知らない＝<see cref="LoadConfig"/> と同じ流儀）。
     /// hook のゲートではなく Claude Code への案内文の配布なので、host は Create 時のみ呼び、失敗しても block しない。
     /// </summary>
     /// <param name="rulesDir">配置先ディレクトリ（<c>&lt;プロジェクトルート&gt;/.claude/rules</c> の絶対パス）。</param>
-    /// <returns>書き込んだファイルの絶対パス。<see cref="ProvidesRule"/> が <c>false</c> のときは <c>null</c>。</returns>
-    public string? CopyRule(string rulesDir)
+    /// <returns>書き込んだファイルの絶対パスの一覧。<see cref="ProvidesRule"/> が <c>false</c> のときは空。</returns>
+    public IReadOnlyList<string> CopyRule(string rulesDir)
     {
         if (!ProvidesRule)
         {
-            return null;
+            return Array.Empty<string>();
         }
 
         var asm = GetType().Assembly;
-        var resource = Array.Find(
+        var resources = Array.FindAll(
             asm.GetManifestResourceNames(),
-            n => n.EndsWith(".rule.md", StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException(
+            n => n.EndsWith(".rule.md", StringComparison.OrdinalIgnoreCase));
+        if (resources.Length == 0)
+        {
+            throw new InvalidOperationException(
                 $"{PluginName}: ProvidesRule=true だが埋め込みリソース *.rule.md が見つからない。");
-
-        using var reader = new StreamReader(asm.GetManifestResourceStream(resource)!);
-        var content = reader.ReadToEnd();
+        }
 
         Directory.CreateDirectory(rulesDir);
-        var path = Path.Combine(rulesDir, $"{PluginName}.md");
-        File.WriteAllText(path, content);
-        return path;
+        var written = new List<string>();
+        foreach (var resource in resources)
+        {
+            using var reader = new StreamReader(asm.GetManifestResourceStream(resource)!);
+            var content = reader.ReadToEnd();
+
+            var fileName = resources.Length == 1
+                ? $"{PluginName}.md"
+                : $"{PluginName}-{ExtractRuleBasename(resource)}.md";
+            var path = Path.Combine(rulesDir, fileName);
+            File.WriteAllText(path, content);
+            written.Add(path);
+        }
+        return written;
+    }
+
+    /// <summary>
+    /// 埋め込みリソース名から rule のファイル名部分を取り出す（末尾セグメント・<c>.rule.md</c> を除く）。
+    /// 既定のドット連結命名／<c>LogicalName</c> によるスラッシュ区切りのどちらでも、区切り文字の後の
+    /// 最後のセグメントが元のファイル名に対応するため、区切り文字は問わず最後のセグメントを取る。
+    /// </summary>
+    private static string ExtractRuleBasename(string resourceName)
+    {
+        var normalized = resourceName.Replace('\\', '/');
+        var lastSegment = normalized[(normalized.LastIndexOf('/') + 1)..];
+        return lastSegment.EndsWith(".rule.md", StringComparison.OrdinalIgnoreCase)
+            ? lastSegment[..^".rule.md".Length]
+            : lastSegment;
     }
 
     /// <summary>埋め込みリソースの論理名が持つディレクトリ区切り。csproj 側の <c>LogicalName</c> は実スラッシュ
