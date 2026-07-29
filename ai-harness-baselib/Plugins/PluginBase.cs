@@ -47,6 +47,16 @@ public abstract class PluginBase
     public virtual bool ProvidesRule => false;
 
     /// <summary>
+    /// このプラグインが各プロジェクトの <c>.claude/skills</c> へ配布する skill を持つか。既定 <c>false</c>＝配布しない。
+    /// <c>true</c> にしたプラグインは、埋め込みリソースの論理名を <c>skills/&lt;スキル名&gt;/...</c>
+    /// （csproj 側で <c>LogicalName</c> を明示し、実スラッシュ区切りで固定すること）で 1 つ以上同梱する
+    /// （<see cref="CopySkill"/> がそれを配置する）。<see cref="ProvidesRule"/> と異なり単一ファイルに限らない
+    /// （<c>SKILL.md</c> と補助ファイル一式を想定）。Claude が能動的に読む案内文の配布であり、
+    /// ハーネスの発火判定には影響しない。
+    /// </summary>
+    public virtual bool ProvidesSkill => false;
+
+    /// <summary>
     /// このプラグインが対象とするツール名の配列。未使用なら <c>null</c>（既定）。
     /// hook の <c>tool_name</c> がこの配列に含まれるイベントで <see cref="Action"/> が発火する。
     /// 全ツールを対象にするには <c>"*"</c>（<see cref="ToolCatalog.Wildcard"/>）。
@@ -322,6 +332,57 @@ public abstract class PluginBase
         var path = Path.Combine(rulesDir, $"{PluginName}.md");
         File.WriteAllText(path, content);
         return path;
+    }
+
+    /// <summary>埋め込みリソースの論理名が持つディレクトリ区切り。csproj 側の <c>LogicalName</c> は実スラッシュ
+    /// で書く規約だが、MSBuild の <c>%(RecursiveDir)</c> は Windows ビルドでバックスラッシュを混ぜて出すことが
+    /// あるため、比較・分解の前に両方をスラッシュへ正規化する。</summary>
+    private const string SkillResourcePrefix = "skills/";
+
+    /// <summary>
+    /// <see cref="ProvidesSkill"/> が <c>true</c> のとき、このプラグインが同梱する埋め込み skill 一式
+    /// （論理名が <c>skills/</c> で始まる全リソース）を、そのプレフィックスを除いた相対パスのまま
+    /// <paramref name="skillsDir"/> 配下へ複製する（既存ファイルは上書き）。<c>false</c> のときは何もしない。
+    ///
+    /// <see cref="CopyRule"/> と異なり 1 プラグインが複数ファイル（<c>SKILL.md</c> と参考資料など）を
+    /// 同梱できる。相対パスの復元を一意にするため、csproj 側は既定のドット連結命名に頼らず
+    /// <c>LogicalName</c> で <c>skills/&lt;相対パス&gt;</c> を明示する規約とする。
+    ///
+    /// 宛先ディレクトリは host が渡す（<see cref="CopyRule"/> と同じ流儀）。hook のゲートではなく
+    /// Claude Code への案内文の配布なので、host は Create 時のみ呼び、失敗しても block しない。
+    /// </summary>
+    /// <param name="skillsDir">配置先ディレクトリ（<c>&lt;プロジェクトルート&gt;/.claude/skills</c> の絶対パス）。</param>
+    /// <returns>書き込んだファイルの絶対パスの一覧。<see cref="ProvidesSkill"/> が <c>false</c> のときは空。</returns>
+    public IReadOnlyList<string> CopySkill(string skillsDir)
+    {
+        if (!ProvidesSkill)
+        {
+            return Array.Empty<string>();
+        }
+
+        var asm = GetType().Assembly;
+        var resources = Array.FindAll(
+            asm.GetManifestResourceNames(),
+            n => n.Replace('\\', '/').StartsWith(SkillResourcePrefix, StringComparison.Ordinal));
+        if (resources.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"{PluginName}: ProvidesSkill=true だが論理名が '{SkillResourcePrefix}' で始まる埋め込みリソースが見つからない。");
+        }
+
+        var written = new List<string>();
+        foreach (var resource in resources)
+        {
+            var relative = resource.Replace('\\', '/')[SkillResourcePrefix.Length..];
+            var destPath = Path.Combine(skillsDir, relative.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
+            using var reader = new StreamReader(asm.GetManifestResourceStream(resource)!);
+            var content = reader.ReadToEnd();
+            File.WriteAllText(destPath, content);
+            written.Add(destPath);
+        }
+        return written;
     }
 
     /// <summary>
