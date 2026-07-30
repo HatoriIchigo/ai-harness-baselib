@@ -316,10 +316,14 @@ public abstract class PluginBase
     /// として使う。
     ///
     /// 宛先ディレクトリは host が渡す（baselib はプロジェクトルートを知らない＝<see cref="LoadConfig"/> と同じ流儀）。
-    /// hook のゲートではなく Claude Code への案内文の配布なので、host は Create 時のみ呼び、失敗しても block しない。
+    /// hook のゲートではなく Claude Code への案内文の配布なので、失敗しても block しない。host は繰り返し呼ぶため
+    /// （セッション開始ごと・<c>--init</c>）、既存の内容と一致するファイルは書き換えない。
     /// </summary>
     /// <param name="rulesDir">配置先ディレクトリ（<c>&lt;プロジェクトルート&gt;/.claude/rules</c> の絶対パス）。</param>
-    /// <returns>書き込んだファイルの絶対パスの一覧。<see cref="ProvidesRule"/> が <c>false</c> のときは空。</returns>
+    /// <returns>
+    /// 実際に書き込んだファイルの絶対パスの一覧。<see cref="ProvidesRule"/> が <c>false</c> のとき、および
+    /// 全ファイルが既存と同内容だったときは空。
+    /// </returns>
     public IReadOnlyList<string> CopyRule(string rulesDir)
     {
         if (!ProvidesRule)
@@ -348,8 +352,10 @@ public abstract class PluginBase
                 ? $"{PluginName}.md"
                 : $"{PluginName}-{ExtractRuleBasename(resource)}.md";
             var path = Path.Combine(rulesDir, fileName);
-            File.WriteAllText(path, content);
-            written.Add(path);
+            if (WriteIfChanged(path, content))
+            {
+                written.Add(path);
+            }
         }
         return written;
     }
@@ -376,17 +382,22 @@ public abstract class PluginBase
     /// <summary>
     /// <see cref="ProvidesSkill"/> が <c>true</c> のとき、このプラグインが同梱する埋め込み skill 一式
     /// （論理名が <c>skills/</c> で始まる全リソース）を、そのプレフィックスを除いた相対パスのまま
-    /// <paramref name="skillsDir"/> 配下へ複製する（既存ファイルは上書き）。<c>false</c> のときは何もしない。
+    /// <paramref name="skillsDir"/> 配下へ複製する（既存ファイルは内容が違えば上書き）。
+    /// <c>false</c> のときは何もしない。
     ///
     /// <see cref="CopyRule"/> と異なり 1 プラグインが複数ファイル（<c>SKILL.md</c> と参考資料など）を
     /// 同梱できる。相対パスの復元を一意にするため、csproj 側は既定のドット連結命名に頼らず
     /// <c>LogicalName</c> で <c>skills/&lt;相対パス&gt;</c> を明示する規約とする。
     ///
     /// 宛先ディレクトリは host が渡す（<see cref="CopyRule"/> と同じ流儀）。hook のゲートではなく
-    /// Claude Code への案内文の配布なので、host は Create 時のみ呼び、失敗しても block しない。
+    /// Claude Code への案内文の配布なので、失敗しても block しない。host は繰り返し呼ぶため
+    /// （セッション開始ごと・<c>--init</c>）、既存の内容と一致するファイルは書き換えない。
     /// </summary>
     /// <param name="skillsDir">配置先ディレクトリ（<c>&lt;プロジェクトルート&gt;/.claude/skills</c> の絶対パス）。</param>
-    /// <returns>書き込んだファイルの絶対パスの一覧。<see cref="ProvidesSkill"/> が <c>false</c> のときは空。</returns>
+    /// <returns>
+    /// 実際に書き込んだファイルの絶対パスの一覧。<see cref="ProvidesSkill"/> が <c>false</c> のとき、および
+    /// 全ファイルが既存と同内容だったときは空。
+    /// </returns>
     public IReadOnlyList<string> CopySkill(string skillsDir)
     {
         if (!ProvidesSkill)
@@ -413,10 +424,43 @@ public abstract class PluginBase
 
             using var reader = new StreamReader(asm.GetManifestResourceStream(resource)!);
             var content = reader.ReadToEnd();
-            File.WriteAllText(destPath, content);
-            written.Add(destPath);
+            if (WriteIfChanged(destPath, content))
+            {
+                written.Add(destPath);
+            }
         }
         return written;
+    }
+
+    /// <summary>
+    /// <paramref name="path"/> の内容が <paramref name="content"/> と異なるときだけ書き込む。
+    ///
+    /// rule／skill の配布はセッション開始ごとに繰り返し走るため、毎回書き込むと内容が同じでも更新時刻が動き、
+    /// プロジェクトの git 差分にノイズが出る。読み取りに失敗した場合（権限・破損）は書き込みを試みる側へ倒す。
+    /// </summary>
+    /// <returns>実際に書き込んだら <c>true</c>、内容が一致していて書かなかったら <c>false</c>。</returns>
+    private static bool WriteIfChanged(string path, string content)
+    {
+        if (File.Exists(path))
+        {
+            try
+            {
+                if (File.ReadAllText(path) == content)
+                {
+                    return false;
+                }
+            }
+            catch (IOException)
+            {
+                // 読めない＝一致を確認できない。上書きを試す（失敗すれば下の書き込みが例外を投げ host が拾う）。
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        File.WriteAllText(path, content);
+        return true;
     }
 
     /// <summary>
